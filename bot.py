@@ -98,7 +98,10 @@ async def cmd_news(message: Message):
         return
     label = "все источники" if show_all else "мои фильтры"
     header = f"<i>Показано из {label}:</i>\n\n" if show_all else ""
-    await message.answer(header + format_items(items), disable_web_page_preview=True)
+    chunks = split_items(items, 4000)
+    for i, chunk in enumerate(chunks):
+        prefix = header if i == 0 else ""
+        await message.answer(prefix + chunk, disable_web_page_preview=True)
 
 
 @router.message(Command("sources"))
@@ -371,6 +374,23 @@ def format_items(items):
     return "\n".join(lines)
 
 
+def split_items(items, limit=4000):
+    chunks = []
+    current = []
+    current_len = 0
+    for item in items:
+        line = format_items([item])
+        if current_len + len(line) > limit and current:
+            chunks.append("\n".join(current))
+            current = []
+            current_len = 0
+        current.append(line)
+        current_len += len(line)
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
+
+
 async def periodic_check(bot: Bot):
     while True:
         try:
@@ -384,11 +404,11 @@ async def periodic_check(bot: Bot):
                     key = aggregator.item_id(item)
                     if key not in seen_ids:
                         seen_ids.add(key)
-                        await bot.send_message(
-                            CHAT_ID,
-                            format_items([item]),
-                            disable_web_page_preview=True,
-                        )
+                        msg = format_items([item])
+                        if len(msg) <= 4096:
+                            await bot.send_message(
+                                CHAT_ID, msg, disable_web_page_preview=True,
+                            )
                         break
         except Exception:
             pass
