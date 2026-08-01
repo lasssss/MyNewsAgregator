@@ -15,6 +15,7 @@ RSS_FEEDS = [
     {"name": "БЕЛТА", "url": "https://www.belta.by/rss/news"},
     {"name": "Onliner.by", "url": "https://people.onliner.by/feed"},
     {"name": "Минск-Новости", "url": "https://www.minsknews.by/rss"},
+    {"name": "Родная нива (Климовичи)", "url": "https://www.rodniva.by/rss"},
 ]
 
 CHECK_INTERVAL_MINUTES = 15
