@@ -8,6 +8,7 @@ from aiogram.types import Message
 import aggregator
 import config
 import settings_store
+import web_ui
 
 router = Router()
 
@@ -193,6 +194,7 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
+    await web_ui.start()
     asyncio.create_task(periodic_check(bot))
 
     print("Бот запущен. Нажмите Ctrl+C для остановки.")
