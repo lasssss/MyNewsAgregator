@@ -9,6 +9,7 @@ DEFAULTS = {
     "feeds": config.RSS_FEEDS,
     "keywords": [],
     "regions": [],
+    "pinned_feeds": [],
     "interval_minutes": config.CHECK_INTERVAL_MINUTES,
     "auto_broadcast": True,
     "rsshub_base": config.RSSHUB_BASE,

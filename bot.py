@@ -16,6 +16,7 @@ import web_ui
 router = Router()
 
 CHAT_ID = os.getenv("CHAT_ID")
+WEB_BASE = os.getenv("WEB_BASE", "http://localhost:8090")
 seen_ids = set()
 
 settings = settings_store.load()
@@ -31,32 +32,71 @@ def require_admin(func):
     return wrapper
 
 
+HELP_TEXT = (
+    "<b>Доступные команды</b>\n\n"
+    "<b>Просмотр:</b>\n"
+    "/news — последние новости\n"
+    "/news all — все новости (без фильтров)\n"
+    "/sources — список источников\n"
+    "/settings — текущие настройки\n\n"
+    "<b>Настройка:</b>\n"
+    "/addfeed URL [название] — добавить источник\n"
+    "/removefeed номер — удалить источник\n"
+    "/autofeed адрес_сайта — найти RSS автоматически\n"
+    "/keywords слово1, слово2 — фильтр по словам\n"
+    "/regions регион1, регион2 — фильтр по регионам\n\n"
+    "<b>Пиннинг:</b>\n"
+    "/pin номер — закрепить источник (всегда вверху)\n"
+    "/unpin номер — открепить\n"
+    "/pins — список закреплённых\n\n"
+    "<b>Система:</b>\n"
+    "/rsshub адрес — сменить RSSHub\n"
+    "/interval минуты — интервал проверки\n"
+    "/broadcast on|off — авто-рассылка\n"
+    "/help — эта справка"
+)
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer(
-        "Привет! Я новостной агрегатор.\n\n"
-        "Команды:\n"
-        "/news — последние новости\n"
-        "/sources — список источников\n"
-        "/settings — текущие настройки\n\n"
-        "Настройки:\n"
-        "/addfeed URL [название] — добавить источник\n"
-        "/removefeed номер — удалить источник\n"
-        "/keywords слово1, слово2 — фильтр по ключевым словам\n"
-        "/regions регион1, регион2 — фильтр по стране/региону\n"
-        "/rsshub адрес — сменить инстанс RSSHub\n"
-        "/interval минуты — интервал авто-проверки\n"
-        "/broadcast on|off — вкл/выкл авто-рассылку"
+    admin = settings_store.is_admin(message.from_user.id)
+    text = (
+        "<b>Новостной агрегатор</b>\n\n"
+        "Собираю новости из источников и выдаю по запросу.\n\n"
+        "Просто напишите <b>/news</b> чтобы получить свежие новости.\n\n"
     )
+    if admin:
+        text += (
+            "<b>Быстрые настройки:</b>\n"
+            "/addfeed — добавить источник\n"
+            "/keywords — фильтр по словам\n"
+            "/regions — фильтр по регионам\n"
+            "/pin — закрепить ленту\n\n"
+            f"Web UI: <a href=\"{WEB_BASE}\">{WEB_BASE}</a>\n\n"
+        )
+    text += "Введите /help для списка всех команд."
+    await message.answer(text)
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message):
+    await message.answer(HELP_TEXT)
 
 
 @router.message(Command("news"))
 async def cmd_news(message: Message):
-    items = aggregator.fetch_all(settings["feeds"], settings["keywords"], settings["regions"])
+    args = message.text.split()
+    show_all = len(args) > 1 and args[1].lower() == "all"
+    items = aggregator.fetch_all(
+        settings["feeds"], settings["keywords"], settings["regions"],
+        pinned=settings.get("pinned_feeds", []), show_all=show_all,
+    )
     if not items:
         await message.answer("Нет новостей. Попробуйте позже или проверьте настройки.")
         return
-    await message.answer(format_items(items), disable_web_page_preview=True)
+    label = "все источники" if show_all else "мои фильтры"
+    header = f"<i>Показано из {label}:</i>\n\n" if show_all else ""
+    await message.answer(header + format_items(items), disable_web_page_preview=True)
 
 
 @router.message(Command("sources"))
@@ -64,7 +104,11 @@ async def cmd_sources(message: Message):
     if not settings["feeds"]:
         await message.answer("Источники не заданы.")
         return
-    lines = [f"{i + 1}. {f['name']} — {f['url']}" for i, f in enumerate(settings["feeds"])]
+    pinned = settings.get("pinned_feeds", [])
+    lines = []
+    for i, f in enumerate(settings["feeds"]):
+        pin = " [pin]" if f["name"] in pinned else ""
+        lines.append(f"{i + 1}. {f['name']}{pin} — {f['url']}")
     await message.answer("Источники:\n" + "\n".join(lines))
 
 
@@ -74,11 +118,14 @@ async def cmd_settings(message: Message):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else "не заданы"
     reg = ", ".join(settings["regions"]) if settings["regions"] else "не заданы"
     broadcast = "вкл" if settings["auto_broadcast"] else "выкл"
+    pinned = settings.get("pinned_feeds", [])
+    pin_list = ", ".join(pinned) if pinned else "нет"
     text = (
         f"<b>Настройки</b>\n"
         f"Источников: {len(settings['feeds'])}\n"
         f"Ключевые слова: {kw}\n"
         f"Страны/регионы: {reg}\n"
+        f"Закреплено: {pin_list}\n"
         f"RSSHub: {settings['rsshub_base']}\n"
         f"Интервал проверки: {settings['interval_minutes']} мин\n"
         f"Авто-рассылка: {broadcast}"
@@ -141,8 +188,69 @@ async def cmd_removefeed(message: Message):
         await message.answer("Неверный номер.")
         return
     removed = settings["feeds"].pop(idx)
+    pinned = settings.get("pinned_feeds", [])
+    if removed["name"] in pinned:
+        pinned.remove(removed["name"])
+        settings["pinned_feeds"] = pinned
     settings_store.save(settings)
     await message.answer(f"Источник удалён: {removed['name']}")
+
+
+@router.message(Command("pin"))
+@require_admin
+async def cmd_pin(message: Message):
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.answer("Использование: /pin номер (номер из /sources)")
+        return
+    idx = int(args[1]) - 1
+    if not 0 <= idx < len(settings["feeds"]):
+        await message.answer("Неверный номер.")
+        return
+    name = settings["feeds"][idx]["name"]
+    pinned = settings.get("pinned_feeds", [])
+    if name in pinned:
+        await message.answer(f"Источник «{name}» уже закреплён.")
+        return
+    pinned.append(name)
+    settings["pinned_feeds"] = pinned
+    settings_store.save(settings)
+    await message.answer(f"Закреплён: <b>{name}</b>\nТеперь всегда будет вверху в /news.")
+
+
+@router.message(Command("unpin"))
+@require_admin
+async def cmd_unpin(message: Message):
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.answer("Использование: /unpin номер (номер из /sources)")
+        return
+    idx = int(args[1]) - 1
+    if not 0 <= idx < len(settings["feeds"]):
+        await message.answer("Неверный номер.")
+        return
+    name = settings["feeds"][idx]["name"]
+    pinned = settings.get("pinned_feeds", [])
+    if name not in pinned:
+        await message.answer(f"Источник «{name}» не закреплён.")
+        return
+    pinned.remove(name)
+    settings["pinned_feeds"] = pinned
+    settings_store.save(settings)
+    await message.answer(f"Откреплён: <b>{name}</b>")
+
+
+@router.message(Command("pins"))
+async def cmd_pins(message: Message):
+    pinned = settings.get("pinned_feeds", [])
+    if not pinned:
+        await message.answer("Нет закреплённых источников. Используйте /pin номер чтобы закрепить.")
+        return
+    lines = []
+    for i, name in enumerate(pinned, 1):
+        idx = next((j + 1 for j, f in enumerate(settings["feeds"]) if f["name"] == name), "?")
+        lines.append(f"{i}. {name} (источник #{idx})")
+    await message.answer("<b>Закреплённые:</b>\n" + "\n".join(lines))
 
 
 @router.message(Command("keywords"))
@@ -226,7 +334,8 @@ async def cmd_broadcast(message: Message):
 def format_items(items):
     lines = []
     for item in items:
-        line = f"<b>[{item['source']}]</b> {item['title']}\n"
+        pin = " *" if item.get("pinned") else ""
+        line = f"<b>[{item['source']}{pin}]</b> {item['title']}\n"
         if item["summary"]:
             line += f"{item['summary']}\n"
         if item["link"]:
@@ -239,7 +348,10 @@ async def periodic_check(bot: Bot):
     while True:
         try:
             if settings["auto_broadcast"] and CHAT_ID:
-                items = aggregator.fetch_all(settings["feeds"], settings["keywords"], settings["regions"])
+                items = aggregator.fetch_all(
+                    settings["feeds"], settings["keywords"], settings["regions"],
+                    pinned=settings.get("pinned_feeds", []),
+                )
                 for item in items:
                     key = aggregator.item_id(item)
                     if key not in seen_ids:

@@ -39,19 +39,23 @@ def match_terms(item, terms):
     return any(t.lower() in text for t in terms)
 
 
-def fetch_all(feeds=None, keywords=None, regions=None):
+def fetch_all(feeds=None, keywords=None, regions=None, pinned=None, show_all=False):
     feeds = feeds or config.RSS_FEEDS
+    pinned = pinned or []
     result = []
     for feed in feeds:
         try:
-            items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, keywords, regions)
+            kw = None if show_all else keywords
+            rg = None if show_all else regions
+            items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, kw, rg)
             for item in items:
                 item = {"source": feed["name"], **item}
                 item["priority"] = feed.get("region") in config.PRIORITY_REGIONS
+                item["pinned"] = feed["name"] in pinned
                 result.append(item)
         except Exception:
             continue
-    result.sort(key=lambda i: not i["priority"])
+    result.sort(key=lambda i: (not i["pinned"], not i["priority"]))
     return result
 
 

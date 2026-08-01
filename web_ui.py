@@ -15,11 +15,23 @@ def render_page(settings, message=""):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else ""
     reg = ", ".join(settings["regions"]) if settings["regions"] else ""
     rsshub = settings.get("rsshub_base", "https://rsshub.app")
+    pinned = settings.get("pinned_feeds", [])
     feeds_rows = ""
     for i, f in enumerate(settings["feeds"]):
+        is_pinned = f["name"] in pinned
+        pin_btn = (
+            f"<form method='post' action='/unpin' style='display:inline'>"
+            f"<input type='hidden' name='idx' value='{i}'>"
+            f"<button class='pin active' title='Открепить'>pin</button></form>"
+            if is_pinned else
+            f"<form method='post' action='/pin' style='display:inline'>"
+            f"<input type='hidden' name='idx' value='{i}'>"
+            f"<button class='pin' title='Закрепить'>pin</button></form>"
+        )
         feeds_rows += (
             f"<div class='feed'><span>{i + 1}. <b>{f['name']}</b></span>"
             f"<code>{f['url']}</code>"
+            f"{pin_btn}"
             f"<form method='post' action='/remove' style='display:inline'>"
             f"<input type='hidden' name='idx' value='{i}'>"
             f"<button class='danger'>Удалить</button></form></div>"
@@ -42,6 +54,8 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 .feed span {{ min-width: 220px; }}
 .feed code {{ flex: 1; font-size: 12px; overflow-wrap: anywhere; }}
 .danger {{ background: #d9534f; color: #fff; border: none; border-radius: 4px; }}
+.pin {{ background: #6c757d; color: #fff; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; }}
+.pin.active {{ background: #ffc107; color: #333; }}
 .card {{ border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }}
 .msg {{ background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 4px; margin-bottom: 12px; }}
 </style>
@@ -173,8 +187,60 @@ async def handle_remove(request):
     settings = settings_store.load()
     if 0 <= idx < len(settings["feeds"]):
         removed = settings["feeds"].pop(idx)
+        pinned = settings.get("pinned_feeds", [])
+        if removed["name"] in pinned:
+            pinned.remove(removed["name"])
+            settings["pinned_feeds"] = pinned
         settings_store.save(settings)
         msg = f"Источник удалён: {removed['name']}"
+    else:
+        msg = "Неверный номер"
+    return web.Response(text=render_page(settings, msg), content_type="text/html")
+
+
+async def handle_pin(request):
+    if not check_auth(request):
+        raise web.HTTPFound("/login")
+    data = await request.post()
+    try:
+        idx = int(data.get("idx", "-1"))
+    except ValueError:
+        idx = -1
+    settings = settings_store.load()
+    if 0 <= idx < len(settings["feeds"]):
+        name = settings["feeds"][idx]["name"]
+        pinned = settings.get("pinned_feeds", [])
+        if name not in pinned:
+            pinned.append(name)
+            settings["pinned_feeds"] = pinned
+            settings_store.save(settings)
+            msg = f"Закреплён: {name}"
+        else:
+            msg = f"Уже закреплён: {name}"
+    else:
+        msg = "Неверный номер"
+    return web.Response(text=render_page(settings, msg), content_type="text/html")
+
+
+async def handle_unpin(request):
+    if not check_auth(request):
+        raise web.HTTPFound("/login")
+    data = await request.post()
+    try:
+        idx = int(data.get("idx", "-1"))
+    except ValueError:
+        idx = -1
+    settings = settings_store.load()
+    if 0 <= idx < len(settings["feeds"]):
+        name = settings["feeds"][idx]["name"]
+        pinned = settings.get("pinned_feeds", [])
+        if name in pinned:
+            pinned.remove(name)
+            settings["pinned_feeds"] = pinned
+            settings_store.save(settings)
+            msg = f"Откреплён: {name}"
+        else:
+            msg = f"Не закреплён: {name}"
     else:
         msg = "Неверный номер"
     return web.Response(text=render_page(settings, msg), content_type="text/html")
@@ -210,6 +276,8 @@ def build_app():
     app.router.add_post("/add", handle_add)
     app.router.add_post("/autofeed", handle_autofeed)
     app.router.add_post("/remove", handle_remove)
+    app.router.add_post("/pin", handle_pin)
+    app.router.add_post("/unpin", handle_unpin)
     app.router.add_post("/save", handle_save)
     return app
 
