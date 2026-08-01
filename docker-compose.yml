@@ -11,3 +11,6 @@ services:
       - ADMIN_ID=${ADMIN_ID}
       - WEB_TOKEN=${WEB_TOKEN}
       - RSSHUB_BASE=${RSSHUB_BASE:-https://rsshub.app}
+      - SETTINGS_FILE=/data/settings.json
+    volumes:
+      - ./data:/data
