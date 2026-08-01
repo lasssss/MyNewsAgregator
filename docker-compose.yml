@@ -4,7 +4,7 @@ services:
     container_name: dailynews
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8090:8090"
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}

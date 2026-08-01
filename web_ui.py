@@ -5,7 +5,7 @@ from aiohttp import web
 import settings_store
 
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
-WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+WEB_PORT = int(os.getenv("WEB_PORT", "8090"))
 WEB_TOKEN = os.getenv("WEB_TOKEN", "")
 
 
