@@ -10,6 +10,7 @@ DEFAULTS = {
     "keywords": [],
     "regions": [],
     "pinned_feeds": [],
+    "priority_regions": list(config.PRIORITY_REGIONS),
     "interval_minutes": config.CHECK_INTERVAL_MINUTES,
     "auto_broadcast": True,
     "rsshub_base": config.RSSHUB_BASE,

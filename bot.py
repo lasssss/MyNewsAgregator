@@ -44,7 +44,8 @@ HELP_TEXT = (
     "/removefeed номер — удалить источник\n"
     "/autofeed адрес_сайта — найти RSS автоматически\n"
     "/keywords слово1, слово2 — фильтр по словам\n"
-    "/regions регион1, регион2 — фильтр по регионам\n\n"
+    "/regions регион1, регион2 — фильтр по регионам\n"
+    "/priority регион1, регион2 — приоритетные регионы\n\n"
     "<b>Пиннинг:</b>\n"
     "/pin номер — закрепить источник (всегда вверху)\n"
     "/unpin номер — открепить\n"
@@ -90,6 +91,7 @@ async def cmd_news(message: Message):
     items = aggregator.fetch_all(
         settings["feeds"], settings["keywords"], settings["regions"],
         pinned=settings.get("pinned_feeds", []), show_all=show_all,
+        priority_regions=settings.get("priority_regions", []),
     )
     if not items:
         await message.answer("Нет новостей. Попробуйте позже или проверьте настройки.")
@@ -120,11 +122,14 @@ async def cmd_settings(message: Message):
     broadcast = "вкл" if settings["auto_broadcast"] else "выкл"
     pinned = settings.get("pinned_feeds", [])
     pin_list = ", ".join(pinned) if pinned else "нет"
+    prio = settings.get("priority_regions", [])
+    prio_list = ", ".join(prio) if prio else "нет"
     text = (
         f"<b>Настройки</b>\n"
         f"Источников: {len(settings['feeds'])}\n"
         f"Ключевые слова: {kw}\n"
         f"Страны/регионы: {reg}\n"
+        f"Приоритетные: {prio_list}\n"
         f"Закреплено: {pin_list}\n"
         f"RSSHub: {settings['rsshub_base']}\n"
         f"Интервал проверки: {settings['interval_minutes']} мин\n"
@@ -285,6 +290,28 @@ async def cmd_regions(message: Message):
     await message.answer(f"Страны/регионы: {', '.join(settings['regions']) or 'не заданы'}")
 
 
+@router.message(Command("priority"))
+@require_admin
+async def cmd_priority(message: Message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        current = settings.get("priority_regions", [])
+        await message.answer(
+            f"Текущие приоритетные: {', '.join(current) or 'нет'}\n\n"
+            "Источники с этими регионами (region: ...) всегда идут вверху в /news.\n\n"
+            "Использование: /priority by, ru (пусто — отключить)\n"
+            "Регионы задаются кодом из поля region источника (by, ru, us и т.д.)"
+        )
+        return
+    raw = args[1].strip()
+    if raw in ("-", "off", "нет"):
+        settings["priority_regions"] = []
+    else:
+        settings["priority_regions"] = [k.strip().lower() for k in raw.split(",") if k.strip()]
+    settings_store.save(settings)
+    await message.answer(f"Приоритетные регионы: {', '.join(settings['priority_regions']) or 'не заданы'}")
+
+
 @router.message(Command("rsshub"))
 @require_admin
 async def cmd_rsshub(message: Message):
@@ -351,6 +378,7 @@ async def periodic_check(bot: Bot):
                 items = aggregator.fetch_all(
                     settings["feeds"], settings["keywords"], settings["regions"],
                     pinned=settings.get("pinned_feeds", []),
+                    priority_regions=settings.get("priority_regions", []),
                 )
                 for item in items:
                     key = aggregator.item_id(item)

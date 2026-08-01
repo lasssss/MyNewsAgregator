@@ -14,6 +14,7 @@ WEB_TOKEN = os.getenv("WEB_TOKEN", "")
 def render_page(settings, message=""):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else ""
     reg = ", ".join(settings["regions"]) if settings["regions"] else ""
+    prio = ", ".join(settings.get("priority_regions", []))
     rsshub = settings.get("rsshub_base", "https://rsshub.app")
     pinned = settings.get("pinned_feeds", [])
     feeds_rows = ""
@@ -92,6 +93,9 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <h2>Фильтр по стране/региону</h2>
 <label>Страны/регионы (через запятую, пусто — отключить)</label>
 <input type="text" name="regions" value="{reg}" placeholder="Россия, США, ЕС">
+<h2>Приоритетные регионы (коды: by, ru, us...)</h2>
+<label>Источники с этими регионами всегда вверху в /news</label>
+<input type="text" name="priority_regions" value="{prio}" placeholder="by, ru">
 <h2>RSSHub (для сайтов без RSS)</h2>
 <label>Базовый адрес инстанса RSSHub</label>
 <input type="text" name="rsshub" value="{rsshub}" placeholder="https://rsshub.app">
@@ -255,6 +259,8 @@ async def handle_save(request):
     settings["keywords"] = [k.strip() for k in keywords.split(",") if k.strip()]
     regions = (data.get("regions") or "").strip()
     settings["regions"] = [r.strip() for r in regions.split(",") if r.strip()]
+    priority_regions = (data.get("priority_regions") or "").strip()
+    settings["priority_regions"] = [r.strip().lower() for r in priority_regions.split(",") if r.strip()]
     rsshub = (data.get("rsshub") or "").strip().rstrip("/")
     if rsshub.startswith(("http://", "https://")):
         settings["rsshub_base"] = rsshub

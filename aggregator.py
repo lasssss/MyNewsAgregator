@@ -39,9 +39,10 @@ def match_terms(item, terms):
     return any(t.lower() in text for t in terms)
 
 
-def fetch_all(feeds=None, keywords=None, regions=None, pinned=None, show_all=False):
+def fetch_all(feeds=None, keywords=None, regions=None, pinned=None, show_all=False, priority_regions=None):
     feeds = feeds or config.RSS_FEEDS
     pinned = pinned or []
+    priority_regions = priority_regions if priority_regions is not None else config.PRIORITY_REGIONS
     result = []
     for feed in feeds:
         try:
@@ -50,7 +51,7 @@ def fetch_all(feeds=None, keywords=None, regions=None, pinned=None, show_all=Fal
             items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, kw, rg)
             for item in items:
                 item = {"source": feed["name"], **item}
-                item["priority"] = feed.get("region") in config.PRIORITY_REGIONS
+                item["priority"] = feed.get("region") in priority_regions
                 item["pinned"] = feed["name"] in pinned
                 result.append(item)
         except Exception:
