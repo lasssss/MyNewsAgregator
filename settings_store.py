@@ -8,6 +8,7 @@ SETTINGS_FILE = os.getenv("SETTINGS_FILE", "settings.json")
 DEFAULTS = {
     "feeds": config.RSS_FEEDS,
     "keywords": [],
+    "regions": [],
     "interval_minutes": config.CHECK_INTERVAL_MINUTES,
     "auto_broadcast": True,
 }

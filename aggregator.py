@@ -5,7 +5,7 @@ import feedparser
 import config
 
 
-def fetch_feed(feed_url, limit, keywords=None):
+def fetch_feed(feed_url, limit, keywords=None, regions=None):
     parsed = feedparser.parse(feed_url)
     items = []
     if parsed.bozo and not parsed.entries:
@@ -19,7 +19,9 @@ def fetch_feed(feed_url, limit, keywords=None):
         if entry.get("summary"):
             summary = strip_html(entry["summary"])[:200]
         item = {"title": title, "link": link, "summary": summary}
-        if keywords and not match_keywords(item, keywords):
+        if keywords and not match_terms(item, keywords):
+            continue
+        if regions and not match_terms(item, regions):
             continue
         items.append(item)
     return items
@@ -32,17 +34,17 @@ def strip_html(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def match_keywords(item, keywords):
+def match_terms(item, terms):
     text = f"{item['title']} {item['summary']}".lower()
-    return any(k.lower() in text for k in keywords)
+    return any(t.lower() in text for t in terms)
 
 
-def fetch_all(feeds=None, keywords=None):
+def fetch_all(feeds=None, keywords=None, regions=None):
     feeds = feeds or config.RSS_FEEDS
     result = []
     for feed in feeds:
         try:
-            items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, keywords)
+            items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, keywords, regions)
             for item in items:
                 result.append({"source": feed["name"], **item})
         except Exception:

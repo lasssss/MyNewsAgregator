@@ -13,6 +13,7 @@ WEB_TOKEN = os.getenv("WEB_TOKEN", "")
 
 def render_page(settings, message=""):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else ""
+    reg = ", ".join(settings["regions"]) if settings["regions"] else ""
     feeds_rows = ""
     for i, f in enumerate(settings["feeds"]):
         feeds_rows += (
@@ -73,6 +74,9 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <form method="post" action="/save">
 <label>Ключевые слова (через запятую, пусто — отключить)</label>
 <input type="text" name="keywords" value="{kw}">
+<h2>Фильтр по стране/региону</h2>
+<label>Страны/регионы (через запятую, пусто — отключить)</label>
+<input type="text" name="regions" value="{reg}" placeholder="Россия, США, ЕС">
 <h2>Интервал проверки (минуты)</h2>
 <input type="number" name="interval" min="1" value="{settings['interval_minutes']}">
 <h2>Авто-рассылка</h2>
@@ -179,6 +183,8 @@ async def handle_save(request):
     settings = settings_store.load()
     keywords = (data.get("keywords") or "").strip()
     settings["keywords"] = [k.strip() for k in keywords.split(",") if k.strip()]
+    regions = (data.get("regions") or "").strip()
+    settings["regions"] = [r.strip() for r in regions.split(",") if r.strip()]
     try:
         interval = int(data.get("interval", "15"))
         settings["interval_minutes"] = max(1, interval)
