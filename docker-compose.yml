@@ -3,6 +3,8 @@ services:
     build: .
     container_name: dailynews
     restart: unless-stopped
+    depends_on:
+      - rsshub
     ports:
       - "8090:8090"
     environment:
@@ -10,7 +12,18 @@ services:
       - CHAT_ID=${CHAT_ID}
       - ADMIN_ID=${ADMIN_ID}
       - WEB_TOKEN=${WEB_TOKEN}
-      - RSSHUB_BASE=${RSSHUB_BASE:-https://rsshub.app}
+      - RSSHUB_BASE=http://rsshub:1200
       - SETTINGS_FILE=/data/settings.json
     volumes:
       - ./data:/data
+
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: rsshub
+    restart: unless-stopped
+    ports:
+      - "1200:1200"
+    environment:
+      - NODE_ENV=production
+      - CACHE_TYPE=memory
+      - LISTEN_INADDR_ANY=0
