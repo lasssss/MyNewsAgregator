@@ -10,3 +10,4 @@ services:
       - CHAT_ID=${CHAT_ID}
       - ADMIN_ID=${ADMIN_ID}
       - WEB_TOKEN=${WEB_TOKEN}
+      - RSSHUB_BASE=${RSSHUB_BASE:-https://rsshub.app}

@@ -44,6 +44,7 @@ async def cmd_start(message: Message):
         "/removefeed номер — удалить источник\n"
         "/keywords слово1, слово2 — фильтр по ключевым словам\n"
         "/regions регион1, регион2 — фильтр по стране/региону\n"
+        "/rsshub адрес — сменить инстанс RSSHub\n"
         "/interval минуты — интервал авто-проверки\n"
         "/broadcast on|off — вкл/выкл авто-рассылку"
     )
@@ -78,6 +79,7 @@ async def cmd_settings(message: Message):
         f"Источников: {len(settings['feeds'])}\n"
         f"Ключевые слова: {kw}\n"
         f"Страны/регионы: {reg}\n"
+        f"RSSHub: {settings['rsshub_base']}\n"
         f"Интервал проверки: {settings['interval_minutes']} мин\n"
         f"Авто-рассылка: {broadcast}"
     )
@@ -112,7 +114,7 @@ async def cmd_autofeed(message: Message):
     site = args[1].strip()
     name = args[2].strip() if len(args) > 2 else ""
     await message.answer("Ищу RSS-ленту, это может занять до минуты...")
-    feed_url = await asyncio.to_thread(feed_finder.find_feed, site)
+    feed_url = await asyncio.to_thread(feed_finder.find_feed, site, settings["rsshub_base"])
     if not feed_url:
         await message.answer("RSS-ленту не удалось найти. Проверь адрес или добавь вручную: /addfeed URL")
         return
@@ -173,6 +175,27 @@ async def cmd_regions(message: Message):
         settings["regions"] = [k.strip() for k in raw.split(",") if k.strip()]
     settings_store.save(settings)
     await message.answer(f"Страны/регионы: {', '.join(settings['regions']) or 'не заданы'}")
+
+
+@router.message(Command("rsshub"))
+@require_admin
+async def cmd_rsshub(message: Message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(
+            f"Текущий RSSHub: {settings['rsshub_base']}\n\n"
+            "Использование: /rsshub https://адрес-инстанса\n"
+            "Публичный rsshub.app часто перегружен, поэтому лучше развернуть свой "
+            "RSSHub на NAS (docker) или использовать другой публичный инстанс."
+        )
+        return
+    url = args[1].strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        await message.answer("Адрес должен начинаться с http:// или https://")
+        return
+    settings["rsshub_base"] = url
+    settings_store.save(settings)
+    await message.answer(f"RSSHub: {settings['rsshub_base']}")
 
 
 @router.message(Command("interval"))

@@ -11,6 +11,7 @@ DEFAULTS = {
     "regions": [],
     "interval_minutes": config.CHECK_INTERVAL_MINUTES,
     "auto_broadcast": True,
+    "rsshub_base": config.RSSHUB_BASE,
 }
 
 

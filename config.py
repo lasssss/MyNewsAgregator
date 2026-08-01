@@ -4,6 +4,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
 ADMIN_ID = os.getenv("ADMIN_ID", "")
 SETTINGS_FILE = os.getenv("SETTINGS_FILE", "settings.json")
+RSSHUB_BASE = os.getenv("RSSHUB_BASE", "https://rsshub.app")
 
 RSS_FEEDS = [
     {"name": "Lenta.ru", "url": "https://lenta.ru/rss"},

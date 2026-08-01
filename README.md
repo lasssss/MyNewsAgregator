@@ -92,7 +92,9 @@ docker push USERNAME/dailynews:latest
 
 - `/addfeed URL [название]` — добавить RSS-источник
 - `/autofeed адрес_сайта [название]` — автоматически найти RSS-ленту сайта
+  (в т.ч. через RSSHub для YouTube, Twitter/X, Telegram, Instagram и др.)
   и добавить её
+- `/rsshub адрес` — сменить инстанс RSSHub (см. ниже)
 - `/removefeed номер` — удалить источник (номер из `/sources`)
 - `/keywords слово1, слово2` — фильтр новостей по ключевым словам
   (пусто — отключить фильтр)
@@ -115,6 +117,18 @@ docker push USERNAME/dailynews:latest
 Порт по умолчанию — `8090` (переменные `WEB_HOST`, `WEB_PORT`).
 В Portainer/OMV убедись, что порт `8090` открыт и проброшен в
 `docker-compose.yml` (уже настроено).
+
+## Сайты без RSS (RSSHub)
+
+Если у сайта нет RSS-ленты (YouTube, Twitter/X, Telegram-каналы, Instagram,
+Reddit и т.д.), автопоиск пробует получить ленту через RSSHub.
+По умолчанию используется публичный `https://rsshub.app`, но он часто
+перегружен. Рекомендуется развернуть свой инстанс RSSHub на NAS (контейнер
+RSSHub) и указать его адрес:
+
+- командой бота: `/rsshub http://192.168.1.10:1200`
+- в веб-интерфейсе: поле «RSSHub»
+- или переменной окружения `RSSHUB_BASE` в docker-compose
 
 ## Настройка источников
 

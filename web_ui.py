@@ -14,6 +14,7 @@ WEB_TOKEN = os.getenv("WEB_TOKEN", "")
 def render_page(settings, message=""):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else ""
     reg = ", ".join(settings["regions"]) if settings["regions"] else ""
+    rsshub = settings.get("rsshub_base", "https://rsshub.app")
     feeds_rows = ""
     for i, f in enumerate(settings["feeds"]):
         feeds_rows += (
@@ -77,6 +78,9 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <h2>Фильтр по стране/региону</h2>
 <label>Страны/регионы (через запятую, пусто — отключить)</label>
 <input type="text" name="regions" value="{reg}" placeholder="Россия, США, ЕС">
+<h2>RSSHub (для сайтов без RSS)</h2>
+<label>Базовый адрес инстанса RSSHub</label>
+<input type="text" name="rsshub" value="{rsshub}" placeholder="https://rsshub.app">
 <h2>Интервал проверки (минуты)</h2>
 <input type="number" name="interval" min="1" value="{settings['interval_minutes']}">
 <h2>Авто-рассылка</h2>
@@ -143,7 +147,7 @@ async def handle_autofeed(request):
     name = (data.get("name") or "").strip()
     if not site:
         return web.Response(text=render_page(settings_store.load(), "Введите адрес сайта"), content_type="text/html")
-    feed_url = await asyncio.to_thread(feed_finder.find_feed, site)
+    feed_url = await asyncio.to_thread(feed_finder.find_feed, site, settings_store.load()["rsshub_base"])
     settings = settings_store.load()
     if not feed_url:
         msg = f"RSS-ленту для {site} не удалось найти. Добавьте вручную."
@@ -185,6 +189,9 @@ async def handle_save(request):
     settings["keywords"] = [k.strip() for k in keywords.split(",") if k.strip()]
     regions = (data.get("regions") or "").strip()
     settings["regions"] = [r.strip() for r in regions.split(",") if r.strip()]
+    rsshub = (data.get("rsshub") or "").strip().rstrip("/")
+    if rsshub.startswith(("http://", "https://")):
+        settings["rsshub_base"] = rsshub
     try:
         interval = int(data.get("interval", "15"))
         settings["interval_minutes"] = max(1, interval)

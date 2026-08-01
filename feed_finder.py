@@ -1,3 +1,4 @@
+import os
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -21,8 +22,28 @@ HEADERS = {
 
 TIMEOUT = 15
 
+RSSHUB_BASE = os.getenv("RSSHUB_BASE", "https://rsshub.app")
 
-def find_feed(site_url):
+RSSHUB_ROUTES = [
+    (("youtube.com", "www.youtube.com", "youtu.be"), "youtube"),
+    (("twitter.com", "x.com", "mobile.twitter.com"), "twitter"),
+    (("t.me", "telegram.me"), "telegram"),
+    (("instagram.com", "www.instagram.com"), "instagram"),
+    (("reddit.com", "www.reddit.com", "old.reddit.com"), "reddit"),
+    (("twitch.tv", "www.twitch.tv"), "twitch"),
+    (("github.com", "www.github.com"), "github"),
+    (("bilibili.com", "www.bilibili.com"), "bilibili"),
+    (("v2ex.com", "www.v2ex.com"), "v2ex"),
+    (("pixiv.net", "www.pixiv.net"), "pixiv"),
+    (("zhihu.com", "www.zhihu.com"), "zhihu"),
+    (("weibo.com", "weibo.cn"), "weibo"),
+    (("sspai.com", "sspai.com"), "sspai"),
+    (("linux.do", "linux.do"), "linuxdo"),
+    (("discord.com", "discord.gg"), "discord"),
+]
+
+
+def find_feed(site_url, rsshub_base=None):
     site_url = normalize(site_url)
     if not site_url:
         return None
@@ -40,6 +61,24 @@ def find_feed(site_url):
         seen.add(url)
         if is_valid_feed(url):
             return url
+
+    rsshub_url = build_rsshub_url(site_url, rsshub_base)
+    if rsshub_url and is_valid_feed(rsshub_url):
+        return rsshub_url
+    return None
+
+
+def build_rsshub_url(site_url, rsshub_base=None):
+    base = (rsshub_base or RSSHUB_BASE).rstrip("/")
+    parsed = urlparse(site_url)
+    host = (parsed.netloc or "").lower()
+    path = parsed.path.strip("/")
+    if not path:
+        return None
+
+    for domains, platform in RSSHUB_ROUTES:
+        if host in domains:
+            return f"{base}/{platform}/{path}"
     return None
 
 
