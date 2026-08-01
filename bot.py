@@ -2,6 +2,8 @@ import asyncio
 import os
 
 from aiogram import Bot, Dispatcher, Router
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 
@@ -235,7 +237,10 @@ async def main():
         print("Ошибка: задайте BOT_TOKEN (см. README)")
         return
 
-    bot = Bot(config.BOT_TOKEN, default=None)
+    bot = Bot(
+        config.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     dp = Dispatcher()
     dp.include_router(router)
 
