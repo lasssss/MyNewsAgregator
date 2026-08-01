@@ -7,6 +7,7 @@ from aiogram.types import Message
 
 import aggregator
 import config
+import feed_finder
 import settings_store
 import web_ui
 
@@ -94,6 +95,31 @@ async def cmd_addfeed(message: Message):
     settings["feeds"].append({"name": name, "url": url})
     settings_store.save(settings)
     await message.answer(f"Источник добавлен: {name}")
+
+
+@router.message(Command("autofeed"))
+@require_admin
+async def cmd_autofeed(message: Message):
+    args = message.text.split(maxsplit=2)
+    if len(args) < 2:
+        await message.answer("Использование: /autofeed адрес_сайта [название]")
+        return
+    site = args[1].strip()
+    name = args[2].strip() if len(args) > 2 else ""
+    await message.answer("Ищу RSS-ленту, это может занять до минуты...")
+    feed_url = await asyncio.to_thread(feed_finder.find_feed, site)
+    if not feed_url:
+        await message.answer("RSS-ленту не удалось найти. Проверь адрес или добавь вручную: /addfeed URL")
+        return
+    if not name:
+        name = feed_url
+    for f in settings["feeds"]:
+        if f["url"] == feed_url:
+            await message.answer(f"Такой источник уже есть: {feed_url}")
+            return
+    settings["feeds"].append({"name": name, "url": feed_url})
+    settings_store.save(settings)
+    await message.answer(f"Найдена лента: <a href=\"{feed_url}\">{name}</a>\nИсточник добавлен.")
 
 
 @router.message(Command("removefeed"))

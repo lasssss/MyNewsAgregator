@@ -1,7 +1,9 @@
+import asyncio
 import os
 
 from aiohttp import web
 
+import feed_finder
 import settings_store
 
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
@@ -45,6 +47,16 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <body>
 <h1>DailyNews — настройки</h1>
 {('<div class="msg">' + message + '</div>') if message else ''}
+<div class="card">
+<h2>Автопоиск RSS-источника</h2>
+<form method="post" action="/autofeed">
+<label>Адрес сайта</label>
+<input type="text" name="site" placeholder="https://example.com" required>
+<label>Название</label>
+<input type="text" name="name" placeholder="(необязательно)">
+<button>Найти и добавить</button>
+</form>
+</div>
 <div class="card">
 <h2>Источники</h2>
 {feeds_rows}
@@ -119,6 +131,29 @@ async def handle_add(request):
     return web.Response(text=render_page(settings, msg), content_type="text/html")
 
 
+async def handle_autofeed(request):
+    if not check_auth(request):
+        raise web.HTTPFound("/login")
+    data = await request.post()
+    site = (data.get("site") or "").strip()
+    name = (data.get("name") or "").strip()
+    if not site:
+        return web.Response(text=render_page(settings_store.load(), "Введите адрес сайта"), content_type="text/html")
+    feed_url = await asyncio.to_thread(feed_finder.find_feed, site)
+    settings = settings_store.load()
+    if not feed_url:
+        msg = f"RSS-ленту для {site} не удалось найти. Добавьте вручную."
+    elif any(f["url"] == feed_url for f in settings["feeds"]):
+        msg = f"Такой источник уже есть: {feed_url}"
+    else:
+        if not name:
+            name = feed_url
+        settings["feeds"].append({"name": name, "url": feed_url})
+        settings_store.save(settings)
+        msg = f"Найдена лента и добавлена: {name}"
+    return web.Response(text=render_page(settings, msg), content_type="text/html")
+
+
 async def handle_remove(request):
     if not check_auth(request):
         raise web.HTTPFound("/login")
@@ -160,6 +195,7 @@ def build_app():
     app.router.add_get("/login", handle_login)
     app.router.add_post("/login", handle_login)
     app.router.add_post("/add", handle_add)
+    app.router.add_post("/autofeed", handle_autofeed)
     app.router.add_post("/remove", handle_remove)
     app.router.add_post("/save", handle_save)
     return app
