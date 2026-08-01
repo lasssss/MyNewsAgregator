@@ -16,6 +16,7 @@ RSS_FEEDS = [
     {"name": "Onliner.by", "url": "https://people.onliner.by/feed", "region": "by"},
     {"name": "Минск-Новости", "url": "https://www.minsknews.by/rss", "region": "by"},
     {"name": "Родная нива (Климовичи)", "url": "https://www.rodniva.by/rss", "region": "by"},
+    {"name": "СБ. Беларусь сегодня", "url": "https://rsshub.app/telegram/channel/sbbytoday", "region": "by"},
     {"name": "МогилевТВ (TVR Mogilev)", "url": "https://rsshub.app/telegram/channel/belarus4mogilev", "region": "by"},
 ]
 
