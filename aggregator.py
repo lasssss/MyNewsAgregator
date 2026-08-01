@@ -46,9 +46,12 @@ def fetch_all(feeds=None, keywords=None, regions=None):
         try:
             items = fetch_feed(feed["url"], config.MAX_ITEMS_PER_FEED, keywords, regions)
             for item in items:
-                result.append({"source": feed["name"], **item})
+                item = {"source": feed["name"], **item}
+                item["priority"] = feed.get("region") in config.PRIORITY_REGIONS
+                result.append(item)
         except Exception:
             continue
+    result.sort(key=lambda i: not i["priority"])
     return result
 
 

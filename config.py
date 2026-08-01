@@ -11,13 +11,16 @@ RSS_FEEDS = [
     {"name": "BBC News", "url": "https://feeds.bbci.co.uk/news/rss.xml"},
     {"name": "Habr", "url": "https://habr.com/ru/rss/all/all/"},
     {"name": "VC.ru", "url": "https://vc.ru/rss"},
-    {"name": "Sputnik Беларусь", "url": "https://sputnik.by/export/rss2/archive/index.xml"},
-    {"name": "БЕЛТА", "url": "https://www.belta.by/rss/news"},
-    {"name": "Onliner.by", "url": "https://people.onliner.by/feed"},
-    {"name": "Минск-Новости", "url": "https://www.minsknews.by/rss"},
-    {"name": "Родная нива (Климовичи)", "url": "https://www.rodniva.by/rss"},
-    {"name": "МогилевТВ (TVR Mogilev)", "url": "https://rsshub.app/telegram/channel/belarus4mogilev"},
+    {"name": "Sputnik Беларусь", "url": "https://sputnik.by/export/rss2/archive/index.xml", "region": "by"},
+    {"name": "БЕЛТА", "url": "https://www.belta.by/rss/news", "region": "by"},
+    {"name": "Onliner.by", "url": "https://people.onliner.by/feed", "region": "by"},
+    {"name": "Минск-Новости", "url": "https://www.minsknews.by/rss", "region": "by"},
+    {"name": "Родная нива (Климовичи)", "url": "https://www.rodniva.by/rss", "region": "by"},
+    {"name": "МогилевТВ (TVR Mogilev)", "url": "https://rsshub.app/telegram/channel/belarus4mogilev", "region": "by"},
 ]
+
+# Регионы, чьи источники выводятся в приоритете
+PRIORITY_REGIONS = ["by"]
 
 CHECK_INTERVAL_MINUTES = 15
 
