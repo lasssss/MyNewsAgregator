@@ -2,6 +2,9 @@ import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
+ADMIN_ID = os.getenv("ADMIN_ID", "")
+SETTINGS_FILE = os.getenv("SETTINGS_FILE", "settings.json")
+
 RSS_FEEDS = [
     {"name": "Lenta.ru", "url": "https://lenta.ru/rss"},
     {"name": "BBC News", "url": "https://feeds.bbci.co.uk/news/rss.xml"},
