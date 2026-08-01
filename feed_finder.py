@@ -27,7 +27,7 @@ RSSHUB_BASE = os.getenv("RSSHUB_BASE", "https://rsshub.app")
 RSSHUB_ROUTES = [
     (("youtube.com", "www.youtube.com", "youtu.be"), "youtube"),
     (("twitter.com", "x.com", "mobile.twitter.com"), "twitter"),
-    (("t.me", "telegram.me"), "telegram"),
+    (("t.me", "telegram.me"), "telegram/channel"),
     (("instagram.com", "www.instagram.com"), "instagram"),
     (("reddit.com", "www.reddit.com", "old.reddit.com"), "reddit"),
     (("twitch.tv", "www.twitch.tv"), "twitch"),

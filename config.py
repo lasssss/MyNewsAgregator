@@ -16,6 +16,7 @@ RSS_FEEDS = [
     {"name": "Onliner.by", "url": "https://people.onliner.by/feed"},
     {"name": "Минск-Новости", "url": "https://www.minsknews.by/rss"},
     {"name": "Родная нива (Климовичи)", "url": "https://www.rodniva.by/rss"},
+    {"name": "МогилевТВ (TVR Mogilev)", "url": "https://rsshub.app/telegram/channel/belarus4mogilev"},
 ]
 
 CHECK_INTERVAL_MINUTES = 15
