@@ -39,6 +39,18 @@ def render_page(settings, message=""):
         )
     if not feeds_rows:
         feeds_rows = "<p>Источников нет</p>"
+    locations = settings.get("weather_locations", [])
+    city_rows = ""
+    for i, loc in enumerate(locations):
+        city_rows += (
+            f"<div class='feed'><span>{i + 1}. <b>{loc['name']}</b></span>"
+            f"<code>{loc['lat']}, {loc['lon']}</code>"
+            f"<form method='post' action='/removecity' style='display:inline'>"
+            f"<input type='hidden' name='idx' value='{i}'>"
+            f"<button class='danger'>Удалить</button></form></div>"
+        )
+    if not city_rows:
+        city_rows = "<p>Городов нет</p>"
     broadcast = "checked" if settings["auto_broadcast"] else ""
     wbroadcast = "checked" if settings.get("weather_broadcast") else ""
     return f"""<!DOCTYPE html>
@@ -84,6 +96,15 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <label>Название</label>
 <input type="text" name="name" placeholder="(необязательно)">
 <button>Добавить источник</button>
+</form>
+</div>
+<div class="card">
+<h2>Города для погоды</h2>
+{city_rows}
+<form method="post" action="/addcity">
+<label>Название города</label>
+<input type="text" name="city" placeholder="Минск" required>
+<button>Добавить город</button>
 </form>
 </div>
 <div class="card">
@@ -277,6 +298,61 @@ async def handle_save(request):
     return web.Response(text=render_page(settings, "Настройки сохранены"), content_type="text/html")
 
 
+async def handle_addcity(request):
+    if not check_auth(request):
+        raise web.HTTPFound("/login")
+    data = await request.post()
+    city = (data.get("city") or "").strip()
+    if not city:
+        return web.Response(text=render_page(settings_store.load(), "Введите название города"), content_type="text/html")
+    import urllib.request
+    import json as _json
+    import urllib.parse
+    settings = settings_store.load()
+    try:
+        geo_url = (
+            f"https://geocoding-api.open-meteo.com/v1/search"
+            f"?name={urllib.parse.quote(city)}&count=1&language=ru"
+        )
+        req = urllib.request.Request(geo_url, headers={"User-Agent": "DailyNews/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            geo = _json.loads(resp.read())
+        if not geo.get("results"):
+            return web.Response(text=render_page(settings, f"Город «{city}» не найден"), content_type="text/html")
+        r = geo["results"][0]
+        name = r.get("name", city)
+        locs = settings.get("weather_locations", [])
+        if any(l["name"].lower() == name.lower() for l in locs):
+            return web.Response(text=render_page(settings, f"Город «{name}» уже есть"), content_type="text/html")
+        locs.append({"name": name, "lat": r["latitude"], "lon": r["longitude"]})
+        settings["weather_locations"] = locs
+        settings_store.save(settings)
+        msg = f"Добавлен: {name}"
+    except Exception:
+        msg = "Не удалось найти город"
+    return web.Response(text=render_page(settings, msg), content_type="text/html")
+
+
+async def handle_removecity(request):
+    if not check_auth(request):
+        raise web.HTTPFound("/login")
+    data = await request.post()
+    try:
+        idx = int(data.get("idx", "-1"))
+    except ValueError:
+        idx = -1
+    settings = settings_store.load()
+    locs = settings.get("weather_locations", [])
+    if 0 <= idx < len(locs):
+        removed = locs.pop(idx)
+        settings["weather_locations"] = locs
+        settings_store.save(settings)
+        msg = f"Удалён: {removed['name']}"
+    else:
+        msg = "Неверный номер"
+    return web.Response(text=render_page(settings, msg), content_type="text/html")
+
+
 def build_app():
     app = web.Application()
     app.router.add_get("/", handle_index)
@@ -288,6 +364,8 @@ def build_app():
     app.router.add_post("/pin", handle_pin)
     app.router.add_post("/unpin", handle_unpin)
     app.router.add_post("/save", handle_save)
+    app.router.add_post("/addcity", handle_addcity)
+    app.router.add_post("/removecity", handle_removecity)
     return app
 
 
