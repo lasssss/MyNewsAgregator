@@ -17,6 +17,7 @@ DEFAULTS = {
     "weather_city": "Минск",
     "weather_lat": 53.9,
     "weather_lon": 27.57,
+    "weather_broadcast": True,
 }
 
 

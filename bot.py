@@ -20,6 +20,7 @@ router = Router()
 CHAT_ID = os.getenv("CHAT_ID")
 WEB_BASE = os.getenv("WEB_BASE", "http://localhost:8090")
 seen_ids = set()
+last_weather = None
 
 settings = settings_store.load()
 
@@ -507,6 +508,19 @@ async def cmd_broadcast(message: Message):
     await message.answer(f"Авто-рассылка {state}")
 
 
+@router.message(Command("weatherbroadcast"))
+@require_admin
+async def cmd_weatherbroadcast(message: Message):
+    args = message.text.split()
+    if len(args) < 2 or args[1].lower() not in ("on", "off"):
+        await message.answer("Использование: /weatherbroadcast on|off")
+        return
+    settings["weather_broadcast"] = args[1].lower() == "on"
+    settings_store.save(settings)
+    state = "включена" if settings["weather_broadcast"] else "выключена"
+    await message.answer(f"Авто-рассылка погоды {state}")
+
+
 def format_items(items):
     lines = []
     for item in items:
@@ -538,6 +552,7 @@ def split_items(items, limit=4000):
 
 
 async def periodic_check(bot: Bot):
+    global last_weather
     while True:
         try:
             if settings["auto_broadcast"] and CHAT_ID:
@@ -556,6 +571,19 @@ async def periodic_check(bot: Bot):
                                 CHAT_ID, msg, disable_web_page_preview=True,
                             )
                         break
+        except Exception:
+            pass
+        try:
+            if settings.get("weather_broadcast") and CHAT_ID:
+                data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
+                if data:
+                    cur = data["current"]
+                    temp = cur["temperature_2m"]
+                    code = cur.get("weather_code", 0)
+                    if last_weather is None or temp != last_weather["temp"] or code != last_weather["code"]:
+                        last_weather = {"temp": temp, "code": code}
+                        text = weather.format_weather(data, settings["weather_city"])
+                        await bot.send_message(CHAT_ID, text)
         except Exception:
             pass
         await asyncio.sleep(settings["interval_minutes"] * 60)
