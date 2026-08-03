@@ -14,10 +14,10 @@ DEFAULTS = {
     "interval_minutes": config.CHECK_INTERVAL_MINUTES,
     "auto_broadcast": True,
     "rsshub_base": config.RSSHUB_BASE,
-    "weather_city": "Минск",
-    "weather_lat": 53.9,
-    "weather_lon": 27.57,
     "weather_broadcast": True,
+    "weather_locations": [
+        {"name": "Минск", "lat": 53.9, "lon": 27.57},
+    ],
 }
 
 

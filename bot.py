@@ -20,7 +20,7 @@ router = Router()
 CHAT_ID = os.getenv("CHAT_ID")
 WEB_BASE = os.getenv("WEB_BASE", "http://localhost:8090")
 seen_ids = set()
-last_weather = None
+seen_weather = set()
 
 settings = settings_store.load()
 
@@ -41,14 +41,18 @@ HELP_TEXT = (
     "/news — последние новости\n"
     "/news all — все новости (без фильтров)\n"
     "/sources — список источников\n"
-    "/settings — текущие настройки\n\n"
+    "/settings — текущие настройки\n"
+    "/weather — погода (выбор города)\n"
+    "/cities — список городов\n\n"
     "<b>Настройка:</b>\n"
     "/addfeed URL [название] — добавить источник\n"
     "/removefeed номер — удалить источник\n"
     "/autofeed адрес_сайта — найти RSS автоматически\n"
     "/keywords слово1, слово2 — фильтр по словам\n"
     "/regions регион1, регион2 — фильтр по регионам\n"
-    "/priority регион1, регион2 — приоритетные регионы\n\n"
+    "/priority регион1, регион2 — приоритетные регионы\n"
+    "/addcity Город — добавить город для погоды\n"
+    "/removecity номер — удалить город\n\n"
     "<b>Пиннинг:</b>\n"
     "/pin номер — закрепить источник (всегда вверху)\n"
     "/unpin номер — открепить\n"
@@ -56,7 +60,8 @@ HELP_TEXT = (
     "<b>Система:</b>\n"
     "/rsshub адрес — сменить RSSHub\n"
     "/interval минуты — интервал проверки\n"
-    "/broadcast on|off — авто-рассылка\n"
+    "/broadcast on|off — авто-рассылка новостей\n"
+    "/weatherbroadcast on|off — авто-рассылка погоды\n"
     "/help — эта справка"
 )
 
@@ -205,35 +210,68 @@ async def cb_help(callback: CallbackQuery):
 
 @router.callback_query(lambda c: c.data == "menu:weather")
 async def cb_weather(callback: CallbackQuery):
+    await callback.answer()
+    locations = settings.get("weather_locations", [])
+    if not locations:
+        await callback.message.answer("Нет сохранённых городов. Добавьте: /addcity Город")
+        return
+    if len(locations) == 1:
+        loc = locations[0]
+        await callback.answer("Загружаю погоду...")
+        data = weather.get_weather(loc["lat"], loc["lon"])
+        if not data:
+            await callback.message.answer("Не удалось получить погоду. Попробуйте позже.")
+            return
+        await callback.message.answer(weather.format_weather(data, loc["name"]))
+        return
+    rows = []
+    for i, loc in enumerate(locations):
+        rows.append([InlineKeyboardButton(text=f"📍 {loc['name']}", callback_data=f"weather:{i}")])
+    await callback.message.answer("Выберите город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+@router.callback_query(lambda c: c.data.startswith("weather:"))
+async def cb_weather_city(callback: CallbackQuery):
     await callback.answer("Загружаю погоду...")
-    data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
+    idx = int(callback.data.split(":")[1])
+    locations = settings.get("weather_locations", [])
+    if idx >= len(locations):
+        await callback.message.answer("Город не найден.")
+        return
+    loc = locations[idx]
+    data = weather.get_weather(loc["lat"], loc["lon"])
     if not data:
         await callback.message.answer("Не удалось получить погоду. Попробуйте позже.")
         return
-    text = weather.format_weather(data, settings["weather_city"])
-    await callback.message.answer(text)
+    await callback.message.answer(weather.format_weather(data, loc["name"]))
 
 
 @router.message(Command("weather"))
 async def cmd_weather(message: Message):
-    data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
-    if not data:
-        await message.answer("Не удалось получить погоду. Попробуйте позже.")
+    locations = settings.get("weather_locations", [])
+    if not locations:
+        await message.answer("Нет сохранённых городов. Добавьте: /addcity Город")
         return
-    text = weather.format_weather(data, settings["weather_city"])
-    await message.answer(text)
+    if len(locations) == 1:
+        loc = locations[0]
+        data = weather.get_weather(loc["lat"], loc["lon"])
+        if not data:
+            await message.answer("Не удалось получить погоду. Попробуйте позже.")
+            return
+        await message.answer(weather.format_weather(data, loc["name"]))
+        return
+    rows = []
+    for i, loc in enumerate(locations):
+        rows.append([InlineKeyboardButton(text=f"📍 {loc['name']}", callback_data=f"weather:{i}")])
+    await message.answer("Выберите город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
 
 
-@router.message(Command("city"))
+@router.message(Command("addcity"))
 @require_admin
-async def cmd_city(message: Message):
+async def cmd_addcity(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
-        await message.answer(
-            f"Текущий город: <b>{settings['weather_city']}</b>\n\n"
-            "Использование: /city Минск\n"
-            "Координаты определяются автоматически."
-        )
+        await message.answer("Использование: /addcity Город")
         return
     city = args[1].strip()
     import urllib.request
@@ -250,16 +288,45 @@ async def cmd_city(message: Message):
             await message.answer(f"Город «{city}» не найден. Проверьте название.")
             return
         r = geo["results"][0]
-        settings["weather_city"] = r.get("name", city)
-        settings["weather_lat"] = r["latitude"]
-        settings["weather_lon"] = r["longitude"]
+        name = r.get("name", city)
+        locs = settings.get("weather_locations", [])
+        if any(l["name"].lower() == name.lower() for l in locs):
+            await message.answer(f"Город «{name}» уже есть в списке.")
+            return
+        locs.append({"name": name, "lat": r["latitude"], "lon": r["longitude"]})
+        settings["weather_locations"] = locs
         settings_store.save(settings)
-        await message.answer(
-            f"Город: <b>{settings['weather_city']}</b>\n"
-            f"Координаты: {settings['weather_lat']}, {settings['weather_lon']}"
-        )
+        await message.answer(f"Добавлен: <b>{name}</b> ({r['latitude']}, {r['longitude']})")
     except Exception:
         await message.answer("Не удалось найти город. Попробуйте другой вариант.")
+
+
+@router.message(Command("removecity"))
+@require_admin
+async def cmd_removecity(message: Message):
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.answer("Использование: /removecity номер (номер из /cities)")
+        return
+    idx = int(args[1]) - 1
+    locs = settings.get("weather_locations", [])
+    if not 0 <= idx < len(locs):
+        await message.answer("Неверный номер.")
+        return
+    removed = locs.pop(idx)
+    settings["weather_locations"] = locs
+    settings_store.save(settings)
+    await message.answer(f"Удалён: <b>{removed['name']}</b>")
+
+
+@router.message(Command("cities"))
+async def cmd_cities(message: Message):
+    locs = settings.get("weather_locations", [])
+    if not locs:
+        await message.answer("Нет сохранённых городов. Добавьте: /addcity Город")
+        return
+    lines = [f"{i + 1}. {loc['name']} ({loc['lat']}, {loc['lon']})" for i, loc in enumerate(locs)]
+    await message.answer("Города:\n" + "\n".join(lines))
 
 
 @router.message(Command("help"))
@@ -588,7 +655,6 @@ def split_items(items, limit=4000):
 
 
 async def periodic_check(bot: Bot):
-    global last_weather
     while True:
         try:
             if settings["auto_broadcast"] and CHAT_ID:
@@ -611,15 +677,17 @@ async def periodic_check(bot: Bot):
             pass
         try:
             if settings.get("weather_broadcast") and CHAT_ID:
-                data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
-                if data:
-                    cur = data["current"]
-                    temp = cur["temperature_2m"]
-                    code = cur.get("weather_code", 0)
-                    if last_weather is None or temp != last_weather["temp"] or code != last_weather["code"]:
-                        last_weather = {"temp": temp, "code": code}
-                        text = weather.format_weather(data, settings["weather_city"])
-                        await bot.send_message(CHAT_ID, text)
+                for loc in settings.get("weather_locations", []):
+                    data = weather.get_weather(loc["lat"], loc["lon"])
+                    if data:
+                        cur = data["current"]
+                        temp = cur["temperature_2m"]
+                        code = cur.get("weather_code", 0)
+                        key = f"{loc['name']}:{temp}:{code}"
+                        if key not in seen_weather:
+                            seen_weather.add(key)
+                            text = weather.format_weather(data, loc["name"])
+                            await bot.send_message(CHAT_ID, text)
         except Exception:
             pass
         await asyncio.sleep(settings["interval_minutes"] * 60)
