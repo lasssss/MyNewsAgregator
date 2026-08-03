@@ -4,7 +4,7 @@ import os
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import Command
 from aiogram.types import Message
 
 import aggregator
@@ -58,8 +58,8 @@ HELP_TEXT = (
 )
 
 
-@router.message(CommandStart())
-async def cmd_start(message: Message):
+@router.message(Command("menu"))
+async def cmd_menu(message: Message):
     admin = settings_store.is_admin(message.from_user.id)
     text = (
         "<b>Новостной агрегатор</b>\n\n"
