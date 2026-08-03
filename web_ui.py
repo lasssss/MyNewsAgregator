@@ -40,6 +40,7 @@ def render_page(settings, message=""):
     if not feeds_rows:
         feeds_rows = "<p>Источников нет</p>"
     broadcast = "checked" if settings["auto_broadcast"] else ""
+    wbroadcast = "checked" if settings.get("weather_broadcast") else ""
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -103,6 +104,7 @@ button {{ padding: 8px 16px; margin-top: 12px; cursor: pointer; }}
 <input type="number" name="interval" min="1" value="{settings['interval_minutes']}">
 <h2>Авто-рассылка</h2>
 <label><input type="checkbox" name="broadcast" {broadcast}> Отправлять новые новости в чат</label>
+<label><input type="checkbox" name="weather_broadcast" {wbroadcast}> Отправлять погоду при изменениях</label>
 <button>Сохранить</button>
 </form>
 </div>
@@ -270,6 +272,7 @@ async def handle_save(request):
     except ValueError:
         pass
     settings["auto_broadcast"] = data.get("broadcast") == "on"
+    settings["weather_broadcast"] = data.get("weather_broadcast") == "on"
     settings_store.save(settings)
     return web.Response(text=render_page(settings, "Настройки сохранены"), content_type="text/html")
 

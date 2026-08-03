@@ -143,6 +143,7 @@ async def cb_settings(callback: CallbackQuery):
     kw = ", ".join(settings["keywords"]) if settings["keywords"] else "не заданы"
     reg = ", ".join(settings["regions"]) if settings["regions"] else "не заданы"
     broadcast = "вкл" if settings["auto_broadcast"] else "выкл"
+    wbroadcast = "вкл" if settings.get("weather_broadcast") else "выкл"
     pinned = settings.get("pinned_feeds", [])
     pin_list = ", ".join(pinned) if pinned else "нет"
     prio = settings.get("priority_regions", [])
@@ -156,9 +157,44 @@ async def cb_settings(callback: CallbackQuery):
         f"Закреплено: {pin_list}\n"
         f"RSSHub: {settings['rsshub_base']}\n"
         f"Интервал проверки: {settings['interval_minutes']} мин\n"
-        f"Авто-рассылка: {broadcast}"
+        f"Авто-рассылка новостей: {broadcast}\n"
+        f"Авто-рассылка погоды: {wbroadcast}"
     )
-    await callback.message.answer(text)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"📰 Новости: {'✅' if settings['auto_broadcast'] else '❌'}",
+                callback_data="toggle:broadcast",
+            ),
+            InlineKeyboardButton(
+                text=f"🌤 Погода: {'✅' if settings.get('weather_broadcast') else '❌'}",
+                callback_data="toggle:weather",
+            ),
+        ],
+    ])
+    await callback.message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(lambda c: c.data == "toggle:broadcast")
+async def cb_toggle_broadcast(callback: CallbackQuery):
+    await callback.answer()
+    if not settings_store.is_admin(callback.from_user.id):
+        return
+    settings["auto_broadcast"] = not settings["auto_broadcast"]
+    settings_store.save(settings)
+    state = "включена" if settings["auto_broadcast"] else "выключена"
+    await callback.message.answer(f"Авто-рассылка новостей {state}")
+
+
+@router.callback_query(lambda c: c.data == "toggle:weather")
+async def cb_toggle_weather(callback: CallbackQuery):
+    await callback.answer()
+    if not settings_store.is_admin(callback.from_user.id):
+        return
+    settings["weather_broadcast"] = not settings.get("weather_broadcast", True)
+    settings_store.save(settings)
+    state = "включена" if settings["weather_broadcast"] else "выключена"
+    await callback.message.answer(f"Авто-рассылка погоды {state}")
 
 
 @router.callback_query(lambda c: c.data == "menu:help")
