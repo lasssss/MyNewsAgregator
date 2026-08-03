@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 import aggregator
 import config
@@ -58,25 +58,109 @@ HELP_TEXT = (
 )
 
 
+def main_menu_kb(admin: bool) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text="📰 Новости", callback_data="menu:news")],
+        [InlineKeyboardButton(text="📰 Все новости", callback_data="menu:news_all")],
+        [InlineKeyboardButton(text="📡 Источники", callback_data="menu:sources")],
+    ]
+    if admin:
+        rows.append([InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings")])
+        rows.append([InlineKeyboardButton(text="ℹ️ Помощь", callback_data="menu:help")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     admin = settings_store.is_admin(message.from_user.id)
     text = (
         "<b>Новостной агрегатор</b>\n\n"
         "Собираю новости из источников и выдаю по запросу.\n\n"
-        "Просто напишите <b>/news</b> чтобы получить свежие новости.\n\n"
+        "Нажмите кнопку или напишите <b>/news</b> чтобы получить свежие новости.\n\n"
     )
     if admin:
-        text += (
-            "<b>Быстрые настройки:</b>\n"
-            "/addfeed — добавить источник\n"
-            "/keywords — фильтр по словам\n"
-            "/regions — фильтр по регионам\n"
-            "/pin — закрепить ленту\n\n"
-            f"Web UI: <a href=\"{WEB_BASE}\">{WEB_BASE}</a>\n\n"
-        )
-    text += "Введите /help для списка всех команд."
-    await message.answer(text)
+        text += f"Web UI: <a href=\"{WEB_BASE}\">{WEB_BASE}</a>"
+    await message.answer(text, reply_markup=main_menu_kb(admin))
+
+
+@router.callback_query(lambda c: c.data == "menu:news")
+async def cb_news(callback: CallbackQuery):
+    await callback.answer()
+    items = aggregator.fetch_all(
+        settings["feeds"], settings["keywords"], settings["regions"],
+        pinned=settings.get("pinned_feeds", []),
+        priority_regions=settings.get("priority_regions", []),
+    )
+    if not items:
+        await callback.message.answer("Нет новостей. Попробуйте позже или проверьте настройки.")
+        return
+    chunks = split_items(items, 4000)
+    for i, chunk in enumerate(chunks):
+        await callback.message.answer(chunk, disable_web_page_preview=True)
+
+
+@router.callback_query(lambda c: c.data == "menu:news_all")
+async def cb_news_all(callback: CallbackQuery):
+    await callback.answer()
+    items = aggregator.fetch_all(
+        settings["feeds"], settings["keywords"], settings["regions"],
+        pinned=settings.get("pinned_feeds", []), show_all=True,
+        priority_regions=settings.get("priority_regions", []),
+    )
+    if not items:
+        await callback.message.answer("Нет новостей. Попробуйте позже или проверьте настройки.")
+        return
+    chunks = split_items(items, 4000)
+    for i, chunk in enumerate(chunks):
+        prefix = "<i>Показано из все источники:</i>\n\n" if i == 0 else ""
+        await callback.message.answer(prefix + chunk, disable_web_page_preview=True)
+
+
+@router.callback_query(lambda c: c.data == "menu:sources")
+async def cb_sources(callback: CallbackQuery):
+    await callback.answer()
+    if not settings["feeds"]:
+        await callback.message.answer("Источники не заданы.")
+        return
+    pinned = settings.get("pinned_feeds", [])
+    lines = []
+    for i, f in enumerate(settings["feeds"]):
+        pin = " [pin]" if f["name"] in pinned else ""
+        lines.append(f"{i + 1}. {f['name']}{pin} — {f['url']}")
+    await callback.message.answer("Источники:\n" + "\n".join(lines))
+
+
+@router.callback_query(lambda c: c.data == "menu:settings")
+async def cb_settings(callback: CallbackQuery):
+    await callback.answer()
+    if not settings_store.is_admin(callback.from_user.id):
+        await callback.message.answer("У вас нет прав на эту команду.")
+        return
+    kw = ", ".join(settings["keywords"]) if settings["keywords"] else "не заданы"
+    reg = ", ".join(settings["regions"]) if settings["regions"] else "не заданы"
+    broadcast = "вкл" if settings["auto_broadcast"] else "выкл"
+    pinned = settings.get("pinned_feeds", [])
+    pin_list = ", ".join(pinned) if pinned else "нет"
+    prio = settings.get("priority_regions", [])
+    prio_list = ", ".join(prio) if prio else "нет"
+    text = (
+        f"<b>Настройки</b>\n"
+        f"Источников: {len(settings['feeds'])}\n"
+        f"Ключевые слова: {kw}\n"
+        f"Страны/регионы: {reg}\n"
+        f"Приоритетные: {prio_list}\n"
+        f"Закреплено: {pin_list}\n"
+        f"RSSHub: {settings['rsshub_base']}\n"
+        f"Интервал проверки: {settings['interval_minutes']} мин\n"
+        f"Авто-рассылка: {broadcast}"
+    )
+    await callback.message.answer(text)
+
+
+@router.callback_query(lambda c: c.data == "menu:help")
+async def cb_help(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(HELP_TEXT)
 
 
 @router.message(Command("help"))
