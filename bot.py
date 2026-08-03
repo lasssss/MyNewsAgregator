@@ -1,5 +1,6 @@
 import asyncio
 import os
+import urllib.parse
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
@@ -11,6 +12,7 @@ import aggregator
 import config
 import feed_finder
 import settings_store
+import weather
 import web_ui
 
 router = Router()
@@ -62,6 +64,7 @@ def main_menu_kb(admin: bool) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text="📰 Новости", callback_data="menu:news")],
         [InlineKeyboardButton(text="📰 Все новости", callback_data="menu:news_all")],
+        [InlineKeyboardButton(text="🌤 Погода", callback_data="menu:weather")],
         [InlineKeyboardButton(text="📡 Источники", callback_data="menu:sources")],
     ]
     if admin:
@@ -161,6 +164,65 @@ async def cb_settings(callback: CallbackQuery):
 async def cb_help(callback: CallbackQuery):
     await callback.answer()
     await callback.message.answer(HELP_TEXT)
+
+
+@router.callback_query(lambda c: c.data == "menu:weather")
+async def cb_weather(callback: CallbackQuery):
+    await callback.answer("Загружаю погоду...")
+    data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
+    if not data:
+        await callback.message.answer("Не удалось получить погоду. Попробуйте позже.")
+        return
+    text = weather.format_weather(data, settings["weather_city"])
+    await callback.message.answer(text)
+
+
+@router.message(Command("weather"))
+async def cmd_weather(message: Message):
+    data = weather.get_weather(settings["weather_lat"], settings["weather_lon"])
+    if not data:
+        await message.answer("Не удалось получить погоду. Попробуйте позже.")
+        return
+    text = weather.format_weather(data, settings["weather_city"])
+    await message.answer(text)
+
+
+@router.message(Command("city"))
+@require_admin
+async def cmd_city(message: Message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(
+            f"Текущий город: <b>{settings['weather_city']}</b>\n\n"
+            "Использование: /city Минск\n"
+            "Координаты определяются автоматически."
+        )
+        return
+    city = args[1].strip()
+    import urllib.request
+    import json as _json
+    try:
+        geo_url = (
+            f"https://geocoding-api.open-meteo.com/v1/search"
+            f"?name={urllib.parse.quote(city)}&count=1&language=ru"
+        )
+        req = urllib.request.Request(geo_url, headers={"User-Agent": "DailyNews/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            geo = _json.loads(resp.read())
+        if not geo.get("results"):
+            await message.answer(f"Город «{city}» не найден. Проверьте название.")
+            return
+        r = geo["results"][0]
+        settings["weather_city"] = r.get("name", city)
+        settings["weather_lat"] = r["latitude"]
+        settings["weather_lon"] = r["longitude"]
+        settings_store.save(settings)
+        await message.answer(
+            f"Город: <b>{settings['weather_city']}</b>\n"
+            f"Координаты: {settings['weather_lat']}, {settings['weather_lon']}"
+        )
+    except Exception:
+        await message.answer("Не удалось найти город. Попробуйте другой вариант.")
 
 
 @router.message(Command("help"))
